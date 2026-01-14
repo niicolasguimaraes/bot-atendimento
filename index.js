@@ -2,7 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, delay } 
 const pino = require('pino');
 const fs = require('fs');
 const http = require('http');
-const QRCode = require('qrcode'); // Transformar texto em imagem pro site
+const QRCode = require('qrcode');
 
 // --- ⚙️ CONFIGURAÇÕES ---
 const PORT = process.env.PORT || 8080;
@@ -10,10 +10,22 @@ const NOME_EMPRESA = "Guimarães Sign";
 const HORARIO_ABERTURA = 7;
 const HORARIO_FECHAMENTO = 17;
 const WEBHOOK_URL = "https://discordapp.com/api/webhooks/1461009453410291826/deimejV9KMK2QuAcYn33OlS_i_yZy0RUZfJifI7MBtWh6-5y349NLNkX3S3MQikSTTOg"; 
+const PASTA_SESSAO = 'auth_info_baileys'; // Nome da pasta da sessão
+
+// --- 🧹 LIMPEZA AUTOMÁTICA (A Correção) ---
+// Apaga a sessão antiga ao iniciar para evitar o Loop de Arquivo Corrompido
+try {
+    if (fs.existsSync(PASTA_SESSAO)) {
+        fs.rmSync(PASTA_SESSAO, { recursive: true, force: true });
+        console.log('🗑️ Sessão antiga apagada com sucesso! Pronto para gerar novo QR.');
+    }
+} catch (e) {
+    console.log('⚠️ Info: Nenhuma sessão para apagar ou erro ignorável.');
+}
 
 // --- VARIÁVEIS GLOBAIS ---
-let qrCodeDataURL = ''; // Vai guardar a imagem base64 do QR
-let statusBot = 'Iniciando Baileys...';
+let qrCodeDataURL = '';
+let statusBot = 'Iniciando e Limpando...';
 let logsRecentes = [];
 
 // Função de Logs
@@ -22,7 +34,6 @@ function addLog(texto) {
     logsRecentes.push(`[${hora}] ${texto}`);
     if (logsRecentes.length > 7) logsRecentes.shift(); 
     console.log(texto);
-    // Envia erros graves pro Discord
     if(texto.includes('Erro') || texto.includes('Conectado')) sendToDiscord('INFO', 'Log Sistema', texto);
 }
 
@@ -33,11 +44,11 @@ const server = http.createServer((req, res) => {
 
     let conteudoPrincipal = '';
     if (statusBot.includes('Conectado')) {
-        conteudoPrincipal = `<h2 style="color:#00ff88">✅ ${statusBot}</h2><p>Memória Livre! O bot está voando baixo. 🚀<br>Use <b>#bot</b> no WhatsApp para testar.</p>`;
+        conteudoPrincipal = `<h2 style="color:#00ff88">✅ ${statusBot}</h2><p>Bot Online! 🚀<br>Use <b>#bot</b> no WhatsApp para testar.</p>`;
     } else {
         conteudoPrincipal = `
-            ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" style="border: 5px solid white; border-radius: 10px; width: 250px;" />` : '<div style="padding:30px; border:2px dashed #555; color: #aaa;">⏳ Gerando QR Code...</div>'}
-            <p style="color: #ffcc00; font-size: 13px; margin-top: 15px;">DICA: O Baileys conecta muito rápido. Se aparecer o QR, escaneie logo!</p>
+            ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" style="border: 5px solid white; border-radius: 10px; width: 250px;" />` : '<div style="padding:30px; border:2px dashed #555; color: #aaa;">⏳ Gerando QR Code...<br>(Aguarde uns segundos)</div>'}
+            <p style="color: #ffcc00; font-size: 13px; margin-top: 15px;">DICA: Sessão limpa! Escaneie assim que aparecer.</p>
         `;
     }
 
@@ -52,7 +63,7 @@ const server = http.createServer((req, res) => {
             </style>
         </head>
         <body>
-            <h1>🤖 ${NOME_EMPRESA} (Versão Light)</h1>
+            <h1>🤖 ${NOME_EMPRESA}</h1>
             <div class="box">
                 <p>Status: <span style="font-weight:bold; color:#00d2ff">${statusBot}</span></p>
                 ${conteudoPrincipal}
@@ -69,22 +80,21 @@ server.listen(PORT, () => addLog(`Painel Web rodando na porta ${PORT}`));
 const userStages = {}; 
 
 async function connectToWhatsApp() {
-    // Salva a sessão na pasta 'auth_info_baileys'
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    // Usa a constante PASTA_SESSAO
+    const { state, saveCreds } = await useMultiFileAuthState(PASTA_SESSAO);
 
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true, // Mostra no terminal também (opcional)
-        logger: pino({ level: 'silent' }), // Silencia logs chatos
-        browser: ["Guimaraes Bot", "Chrome", "1.0.0"], // Finge ser um navegador
+        printQRInTerminal: true,
+        logger: pino({ level: 'silent' }),
+        browser: ["Guimaraes Bot", "Chrome", "1.0.0"],
+        connectTimeoutMs: 60000, // Tempo maior para evitar timeout
     });
 
-    // Monitora a conexão
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
-            // Transforma o texto do QR em Imagem para o Site
             statusBot = 'Aguardando Leitura...';
             QRCode.toDataURL(qr, (err, url) => {
                 if (!err) qrCodeDataURL = url;
@@ -93,18 +103,22 @@ async function connectToWhatsApp() {
         }
 
         if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            addLog(`Conexão fechada. Reconectando? ${shouldReconnect}`);
-            statusBot = 'Reconectando...';
+            const erroCodigo = (lastDisconnect.error)?.output?.statusCode;
+            const shouldReconnect = erroCodigo !== DisconnectReason.loggedOut;
+            
+            addLog(`Conexão fechada (Erro: ${erroCodigo}). Reconectando? ${shouldReconnect}`);
+            
             if (shouldReconnect) {
-                connectToWhatsApp();
+                statusBot = 'Reconectando em 5s...';
+                // Espera 5 segundos para não travar o servidor com reconexões rápidas
+                setTimeout(connectToWhatsApp, 5000);
             } else {
                 statusBot = 'Desconectado (Sessão Encerrada)';
-                addLog('Você desconectou o bot pelo celular. Apague a pasta auth_info e reinicie.');
+                addLog('Você desconectou pelo celular. O bot vai limpar a sessão no próximo reinício.');
             }
         } else if (connection === 'open') {
             statusBot = '✅ Conectado e Online!';
-            qrCodeDataURL = ''; // Limpa QR
+            qrCodeDataURL = ''; 
             addLog('Conexão aberta com sucesso!');
         }
     });
@@ -116,7 +130,6 @@ async function connectToWhatsApp() {
         const msg = messages[0];
         if (!msg.message) return;
 
-        // Ignora status e grupos
         const isGroup = msg.key.remoteJid.endsWith('@g.us');
         const isStatus = msg.key.remoteJid === 'status@broadcast';
         if (isGroup || isStatus) return;
@@ -131,7 +144,7 @@ async function connectToWhatsApp() {
                 addLog(`Comando #bot ativado para ${userId}`);
                 await enviarMenu(sock, userId, "Cliente (Manual)");
             }
-            return; // Se for mensagem sua e não for #bot, ignora
+            return; 
         }
 
         // --- LÓGICA DE ATENDIMENTO ---
@@ -140,7 +153,6 @@ async function connectToWhatsApp() {
         const estagio = userStages[userId] || 'INICIO';
 
         if (estagio === 'INICIO') {
-            // Verifica Horário
             const hora = new Date().getHours();
             if (hora < HORARIO_ABERTURA || hora >= HORARIO_FECHAMENTO) {
                 await sock.sendMessage(userId, { text: `🌙 *Olá!* Estamos fora do horário de atendimento (07h às 17h).\nSe for urgente, use o menu abaixo.` });
