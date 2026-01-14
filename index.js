@@ -95,13 +95,18 @@ wppconnect
   .create({
     session: 'meu-bot-visual',
     headless: true,
-    logQR: true,
-    autoClose: 0, // Não desliga esperando QR
+    logQR: false, // <--- DESLIGAMOS O QR CODE QUEBRADO
+    catchQR: (base64Qr, asciiQR) => {
+        console.log('\n👇 COPIE O TEXTO GIGANTE ABAIXO E COLE EM: https://base64-image.de/ 👇\n');
+        console.log(base64Qr);
+        console.log('\n👆 FIM DO CÓDIGO 👆\n');
+    },
+    autoClose: 0,
     browserArgs: [
         '--disable-web-security',
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage', // <--- ESSENCIAL PARA O RENDER
+        '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
