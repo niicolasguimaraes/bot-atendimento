@@ -10,22 +10,15 @@ const NOME_EMPRESA = "Guimarães Sign";
 const HORARIO_ABERTURA = 7;
 const HORARIO_FECHAMENTO = 17;
 const WEBHOOK_URL = "https://discordapp.com/api/webhooks/1461009453410291826/deimejV9KMK2QuAcYn33OlS_i_yZy0RUZfJifI7MBtWh6-5y349NLNkX3S3MQikSTTOg"; 
-const PASTA_SESSAO = 'auth_info_baileys'; // Nome da pasta da sessão
 
-// --- 🧹 LIMPEZA AUTOMÁTICA (A CORREÇÃO DO LOOP) ---
-// Isso apaga a sessão velha/corrompida toda vez que o bot reinicia
-try {
-    if (fs.existsSync(PASTA_SESSAO)) {
-        fs.rmSync(PASTA_SESSAO, { recursive: true, force: true });
-        console.log('🗑️ Sessão antiga apagada com sucesso! Pronto para gerar novo QR.');
-    }
-} catch (e) {
-    console.log('⚠️ Info: Nenhuma sessão para apagar ou erro ignorável.');
-}
+// --- 🎲 SESSÃO DESCARTÁVEL (Solução Anti-Zumbi) ---
+// Cria um nome aleatório tipo 'sessao_8371'. 
+// Isso obriga o bot a criar uma conta nova e ignora a velha corrompida.
+const PASTA_SESSAO = 'sessao_nova_' + Math.floor(Math.random() * 10000);
 
 // --- VARIÁVEIS GLOBAIS ---
 let qrCodeDataURL = ''; 
-let statusBot = 'Iniciando e Limpando...';
+let statusBot = 'Iniciando Sessão Nova...';
 let logsRecentes = [];
 
 // Função de Logs
@@ -37,7 +30,7 @@ function addLog(texto) {
     if(texto.includes('Erro') || texto.includes('Conectado')) sendToDiscord('INFO', 'Log Sistema', texto);
 }
 
-// --- 🌐 SITE (WEB VIEW LEVE) ---
+// --- 🌐 SITE ---
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     const logsHtml = logsRecentes.map(l => `<div style="font-size:12px; color:#aaa; border-bottom:1px solid #333; padding:2px;">${l}</div>`).join('');
@@ -48,7 +41,7 @@ const server = http.createServer((req, res) => {
     } else {
         conteudoPrincipal = `
             ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" style="border: 5px solid white; border-radius: 10px; width: 250px;" />` : '<div style="padding:30px; border:2px dashed #555; color: #aaa;">⏳ Gerando QR Code...<br>(Aguarde uns segundos)</div>'}
-            <p style="color: #ffcc00; font-size: 13px; margin-top: 15px;">DICA: Sessão limpa! Escaneie assim que aparecer.</p>
+            <p style="color: #ffcc00; font-size: 13px; margin-top: 15px;">⚠️ ATENÇÃO: Se travar no celular, NÃO FECHE. Deixe rodar por 2 minutos.</p>
         `;
     }
 
@@ -66,6 +59,7 @@ const server = http.createServer((req, res) => {
             <h1>🤖 ${NOME_EMPRESA}</h1>
             <div class="box">
                 <p>Status: <span style="font-weight:bold; color:#00d2ff">${statusBot}</span></p>
+                <p style="font-size:10px; color:gray">Sessão Atual: ${PASTA_SESSAO}</p>
                 ${conteudoPrincipal}
                 <div class="logs"><b>Terminal:</b><br>${logsHtml}</div>
             </div>
@@ -80,7 +74,7 @@ server.listen(PORT, () => addLog(`Painel Web rodando na porta ${PORT}`));
 const userStages = {}; 
 
 async function connectToWhatsApp() {
-    // Usa a constante PASTA_SESSAO para garantir que estamos usando o mesmo nome
+    addLog(`Criando sessão na pasta: ${PASTA_SESSAO}`);
     const { state, saveCreds } = await useMultiFileAuthState(PASTA_SESSAO);
 
     const sock = makeWASocket({
@@ -110,11 +104,10 @@ async function connectToWhatsApp() {
             
             if (shouldReconnect) {
                 statusBot = 'Reconectando em 5s...';
-                // 👇 AQUI ESTÁ O FREIO: Espera 5 segundos antes de tentar de novo
                 setTimeout(connectToWhatsApp, 5000);
             } else {
                 statusBot = 'Desconectado (Sessão Encerrada)';
-                addLog('Sessão encerrada manualmente. Bot vai limpar tudo no próximo reinício.');
+                addLog('Sessão encerrada manualmente.');
             }
         } else if (connection === 'open') {
             statusBot = '✅ Conectado e Online!';
@@ -125,7 +118,6 @@ async function connectToWhatsApp() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Monitora Mensagens
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const msg = messages[0];
         if (!msg.message) return;
@@ -138,7 +130,6 @@ async function connectToWhatsApp() {
         const textoRecebido = (msg.message.conversation || msg.message.extendedTextMessage?.text || '').trim();
         const textoLower = textoRecebido.toLowerCase();
 
-        // --- COMANDO MÁGICO #BOT ---
         if (msg.key.fromMe) {
             if (textoLower === '#bot') {
                 addLog(`Comando #bot ativado para ${userId}`);
@@ -147,7 +138,6 @@ async function connectToWhatsApp() {
             return; 
         }
 
-        // --- LÓGICA DE ATENDIMENTO ---
         addLog(`Msg de ${userId}: ${textoRecebido}`);
         
         const estagio = userStages[userId] || 'INICIO';
@@ -211,13 +201,11 @@ async function connectToWhatsApp() {
     });
 }
 
-// Helper para enviar menu
 async function enviarMenu(sock, jid, nome) {
     const textoMenu = `👋 Olá, *${nome}*! Bem-vindo à ${NOME_EMPRESA}.\n\nDigite o número da opção:\n\n1️⃣ *Falar com Vendedor* (Orçamento)\n2️⃣ *Financeiro* (PIX/Boletos)\n3️⃣ *Tirar Dúvida* (Endereço/Horário)`;
     await sock.sendMessage(jid, { text: textoMenu });
 }
 
-// Discord Helper (Simples)
 async function sendToDiscord(tipo, titulo, detalhe) {
     if (!WEBHOOK_URL.startsWith('http')) return;
     try {
@@ -229,5 +217,4 @@ async function sendToDiscord(tipo, titulo, detalhe) {
     } catch (e) {}
 }
 
-// Inicia
 connectToWhatsApp();
