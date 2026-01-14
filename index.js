@@ -2,17 +2,6 @@ const fs = require('fs');
 const http = require('http');
 const wppconnect = require('@wppconnect-team/wppconnect');
 
-// --- 🧹 FAXINA DE EMERGÊNCIA (Obrigatório agora) ---
-// Isso vai apagar o arquivo corrompido que está travando o bot
-try {
-    if (fs.existsSync('./tokens')) {
-        fs.rmSync('./tokens', { recursive: true, force: true });
-        console.log('[SISTEMA] 🗑️ Pasta de tokens corrompida foi apagada.');
-    }
-} catch (e) {
-    console.log('[INFO] Limpeza ignorada.');
-}
-
 // --- ⚙️ CONFIGURAÇÕES ---
 const PORT = process.env.PORT || 8080; 
 const NOME_EMPRESA = "Guimarães Sign";
@@ -22,31 +11,38 @@ const WEBHOOK_URL = "https://discordapp.com/api/webhooks/1461009453410291826/dei
 
 // --- VARIÁVEIS ---
 let qrCodeImagem = ''; 
-let statusBot = 'Iniciando limpeza...';
+let statusBot = 'Iniciando...';
 
-// --- 🌐 SITE (WEB VIEW) ---
+// --- 🌐 SITE DO QR CODE ---
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    
+    // Se tiver QR Code, mostra ele. Se estiver conectado, avisa.
+    let htmlContent = '';
+    if (statusBot.includes('Conectado')) {
+        htmlContent = `<h2 style="color:green">✅ ${statusBot}</h2><p>Pode fechar esta janela e testar no WhatsApp.</p>`;
+    } else {
+        htmlContent = `
+            ${qrCodeImagem ? `<img src="${qrCodeImagem}" style="border: 5px solid white; border-radius: 10px;" />` : '<div style="padding:40px; border:2px dashed #666; color: #ccc;">⏳ Carregando QR Code...<br>(Aguarde até 2 min)</div>'}
+            <p style="color: #ffcc00; font-weight: bold; margin-top: 15px;">⚠️ DICA DE OURO:</p>
+            <p style="color: #ddd; font-size: 14px; max-width: 400px; margin: 0 auto;">Se no celular travar em "Conectando...", <b>NÃO FECHE O WHATSAPP</b>. O servidor grátis é lento. Deixe o celular parado na tela de scan por até 3 minutos que ele vai destravar.</p>
+        `;
+    }
+
     let html = `
     <html>
         <head>
-            <meta http-equiv="refresh" content="3"> <style>
-                body { font-family: sans-serif; text-align: center; padding: 20px; background: #222; color: #fff; }
-                .box { background: #333; padding: 20px; border-radius: 10px; display: inline-block; max-width: 90%; }
-                img { width: 300px; height: 300px; border: 5px solid #fff; border-radius: 10px; }
-                .status { color: #00ff88; font-weight: bold; font-size: 18px; }
-                .aviso { color: #ffcc00; margin-top: 15px; font-size: 14px; }
+            <meta http-equiv="refresh" content="5"> <style>
+                body { font-family: sans-serif; text-align: center; padding: 40px; background: #1a1a1a; color: white; }
+                h1 { margin-bottom: 10px; }
+                .status { color: #00d2ff; font-weight: bold; }
             </style>
         </head>
         <body>
-            <div class="box">
-                <h1>🤖 ${NOME_EMPRESA}</h1>
-                <p>Status: <span class="status">${statusBot}</span></p>
-                <br>
-                ${qrCodeImagem ? `<img src="${qrCodeImagem}" />` : '<div style="padding:50px; border:2px dashed #555;">⏳ Gerando QR Code...<br>(Isso pode levar até 2 min no Render)</div>'}
-                
-                <p class="aviso">⚠️ DICA: Se o celular ficar rodando "Conectando" e não sair disso:<br>NÃO FECHE O WHATSAPP. Deixe o celular parado na tela por 3 minutos.</p>
-            </div>
+            <h1>🤖 ${NOME_EMPRESA}</h1>
+            <p>Status: <span class="status">${statusBot}</span></p>
+            <br>
+            ${htmlContent}
         </body>
     </html>
     `;
@@ -54,7 +50,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`[SERVIDOR] Site rodando na porta ${PORT}.`);
+    console.log(`[SERVIDOR] Painel Web rodando na porta ${PORT}.`);
 });
 
 // --- 🎨 LOGS ---
@@ -87,19 +83,22 @@ const BANCO_NOME = "Nubank";
 const ENDERECO = "R. Neuza Fransisca dos Santos, 610 - Sumaré - SP";
 const HORARIO_TEXTO = "Segunda a Sexta das 07h às 17h";
 
-// --- INICIANDO ---
+// --- INICIANDO O BOT (MODO ECONOMIA DE MEMÓRIA) ---
 wppconnect.create({
     session: 'meu-bot-visual',
     headless: true,
     logQR: false,
-    disableWelcome: true, // Inicia mais rápido
-    updatesLog: false,    // Limpa o terminal
-    autoClose: 0,
-    // 👇 Removi o blockAssets pois ele podia estar sumindo com o QR Code
+    disableWelcome: true, // Menos texto no console
+    updatesLog: false,
+    autoClose: 0, // Nunca fecha sozinho
+    
+    // 👇 A SALVAÇÃO: BLOQUEIA IMAGENS PARA NÃO ESTOURAR A MEMÓRIA 👇
+    blockAssets: true, 
+    
     catchQR: (base64Qr, asciiQR) => {
         qrCodeImagem = base64Qr;
-        statusBot = '📸 ESCANEIE AGORA!';
-        console.log('>> [QR CODE] Novo código gerado! Atualize o site. <<');
+        statusBot = 'AGUARDANDO LEITURA...';
+        console.log('>> QR Code gerado! <<');
     },
     browserArgs: [
         '--disable-web-security',
@@ -110,17 +109,18 @@ wppconnect.create({
         '--no-first-run',
         '--no-zygote',
         '--single-process', 
-        '--disable-gpu'
+        '--disable-gpu',
+        '--js-flags="--max-old-space-size=256"' // Força o Chrome a usar pouca RAM
     ],
 })
 .then((client) => start(client))
 .catch((error) => {
-    statusBot = 'Erro: ' + error.message;
-    logSystem('ERRO', 'Falha ao iniciar Chrome', error.message);
+    statusBot = 'Erro Fatal: ' + error.message;
+    console.log(error);
 });
 
 function start(client) {
-    statusBot = '✅ Conectado!';
+    statusBot = '✅ Conectado e Operando!';
     qrCodeImagem = ''; 
     logSystem('ONLINE', 'Sistema Iniciado', `Aguardando conexão...`);
     
@@ -128,7 +128,7 @@ function start(client) {
         console.log('[ESTADO]', state);
         if (state === 'CONFLICT') client.useHere();
         if (state === 'CONNECTED') {
-            statusBot = '✅ Online e Operando!';
+            statusBot = '✅ Conectado ao WhatsApp!';
             logSystem('ONLINE', 'Conectado ao WhatsApp!', 'Pronto para atender');
         }
     });
@@ -145,7 +145,7 @@ function start(client) {
         const conteudo = tipoMsg === 'chat' ? message.body : `[Mídia: ${tipoMsg}]`;
         logSystem('RECEBIDO', `De: ${nomeCliente}`, conteudo);
 
-        // --- MENUS ---
+        // --- LÓGICA DE MENUS (Mantida igual) ---
         if (userStage === 'INICIO') {
             const agora = new Date();
             const horaAtual = agora.getHours(); 
