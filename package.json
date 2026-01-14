@@ -1,20 +1,17 @@
 {
-  "name": "bot-atendimento",
+  "name": "bot-atendimento-baileys",
   "version": "1.0.0",
-  "description": "Bot Whatsapp Baileys Light",
+  "description": "Bot Leve",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "@whiskeysockets/baileys": "^6.6.0",
     "pino": "^8.0.0",
     "qrcode": "^1.5.3"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18.0.0"
   }
 }

@@ -1,17 +1,16 @@
 FROM node:20-slim
 
-# Cria a pasta do bot
+# Define a pasta de trabalho
 WORKDIR /usr/src/app
 
-# 👇 AQUI ESTÁ O TRUQUE:
-# Copia APENAS o arquivo de ingredientes novo.
-# Ignora o package-lock.json antigo para não dar conflito.
+# Copia apenas o package.json (ignora o lock antigo do npm)
 COPY package.json ./
 
-# Instala tudo do zero (gera um arquivo de trava novo e limpo)
-RUN npm install
+# 👇 A MÁGICA: Usamos YARN em vez de NPM
+# O Yarn é mais estável e cria seu próprio arquivo de trava limpo
+RUN yarn install --production
 
-# Copia o resto do código do bot
+# Copia o restante dos arquivos do bot
 COPY . .
 
 # Inicia o bot
