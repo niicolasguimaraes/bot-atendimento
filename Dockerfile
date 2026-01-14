@@ -1,19 +1,22 @@
-# Usa o sistema Alpine (Super leve, sobra memória pro instalador)
+# Usa o Alpine (Leve)
 FROM node:20-alpine
 
-# Cria a pasta
+# Define a pasta
 WORKDIR /usr/src/app
 
-# Copia o arquivo de receitas
+# Copia a receita do bolo
 COPY package.json ./
 
-# 👇 A SOLUÇÃO DO ERRO:
-# Instalação limpa, sem auditoria, sem fundos, apenas produção.
-# Isso gasta o mínimo de memória possível.
-RUN npm install --only=production --no-audit --no-fund
+# 👇 A SOLUÇÃO:
+# 1. Instala ferramentas de construção (Python, Make, G++)
+# 2. Instala o Bot
+# 3. Remove as ferramentas para não ocupar espaço
+RUN apk add --no-cache python3 make g++ && \
+    npm install --production --no-audit && \
+    apk del python3 make g++
 
-# Copia o resto do bot
+# Copia o código do bot (o .dockerignore vai filtrar o lixo)
 COPY . .
 
-# Inicia o bot
+# Inicia
 CMD ["node", "index.js"]
