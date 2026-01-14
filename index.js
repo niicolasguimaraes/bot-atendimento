@@ -1,12 +1,24 @@
 const wppconnect = require('@wppconnect-team/wppconnect');
 const http = require('http'); // Servidor para enganar o Render
+const fs = require('fs');
+
+// --- 🧹 FAXINA DE SESSÃO (CORRIGIDO: Fica aqui no topo) ---
+try {
+    if (fs.existsSync('./tokens')) {
+        fs.rmSync('./tokens', { recursive: true, force: true });
+        console.log('[SISTEMA] Pasta de tokens limpa para novo login.');
+    }
+} catch (e) {
+    console.log('[INFO] Limpeza de pasta ignorada.');
+}
 
 // --- ⚙️ CONFIGURAÇÕES GERAIS ---
 const PORT = process.env.PORT || 8080; 
 const NOME_EMPRESA = "Guimarães Sign";
 const HORARIO_ABERTURA = 7; 
 const HORARIO_FECHAMENTO = 17; 
-const WEBHOOK_URL = "https://discordapp.com/api/webhooks/1461009453410291826/deimejV9KMK2QuAcYn33OlS_i_yZy0RUZfJifI7MBtWh6-5y349NLNkX3S3MQikSTTOg"; // <--- COLE SUA URL DO DISCORD AQUI
+// 👇 SUA URL DO DISCORD ESTÁ AQUI
+const WEBHOOK_URL = "https://discordapp.com/api/webhooks/1461009453410291826/deimejV9KMK2QuAcYn33OlS_i_yZy0RUZfJifI7MBtWh6-5y349NLNkX3S3MQikSTTOg"; 
 
 // --- 🚑 SERVIDOR FALSO (MANTÉM O RENDER ACORDADO) ---
 const server = http.createServer((req, res) => {
@@ -95,7 +107,7 @@ wppconnect
   .create({
     session: 'meu-bot-visual',
     headless: true,
-    logQR: false, // <--- DESLIGAMOS O QR CODE QUEBRADO
+    logQR: false, // <--- DESLIGAMOS O QR CODE QUEBRADO (Modo Texto)
     catchQR: (base64Qr, asciiQR) => {
         console.log('\n👇 COPIE O TEXTO GIGANTE ABAIXO E COLE EM: https://base64-image.de/ 👇\n');
         console.log(base64Qr);
