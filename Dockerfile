@@ -1,19 +1,23 @@
-# Volta para o sistema padrão (mais compatível e não precisa compilar tudo)
+# Usa a versão Slim do Node 20
 FROM node:20-slim
 
-# Define a pasta
+# Ativa o PNPM (O instalador que economiza memória)
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+# Cria a pasta
 WORKDIR /usr/src/app
 
-# Copia apenas o arquivo de receitas
+# Copia apenas o arquivo de receita
 COPY package.json ./
 
-# 👇 O SEGREDO:
-# --omit=dev: Não baixa ferramentas de desenvolvimento
-# --no-optional: Pula dependências opcionais pesadas que travam a memória
-# --no-audit: Não perde tempo verificando segurança agora
-RUN npm install --omit=dev --no-optional --no-audit
+# 👇 A MÁGICA:
+# Usa pnpm install em vez de npm install.
+# Isso evita o estouro de memória (Erro 254).
+RUN pnpm install --prod --ignore-scripts
 
-# Copia o resto do código (filtrado pelo .dockerignore)
+# Copia o resto dos arquivos
 COPY . .
 
 # Inicia o bot
