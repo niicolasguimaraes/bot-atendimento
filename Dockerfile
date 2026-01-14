@@ -3,13 +3,15 @@ FROM node:20-slim
 # Cria a pasta do bot
 WORKDIR /usr/src/app
 
-# Copia os arquivos de configuração
-COPY package*.json ./
+# 👇 AQUI ESTÁ O TRUQUE:
+# Copia APENAS o arquivo de ingredientes novo.
+# Ignora o package-lock.json antigo para não dar conflito.
+COPY package.json ./
 
-# Instala apenas o necessário (Baileys)
+# Instala tudo do zero (gera um arquivo de trava novo e limpo)
 RUN npm install
 
-# Copia o resto do código
+# Copia o resto do código do bot
 COPY . .
 
 # Inicia o bot
