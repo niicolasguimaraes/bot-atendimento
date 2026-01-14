@@ -12,8 +12,8 @@ const HORARIO_FECHAMENTO = 17;
 const WEBHOOK_URL = "https://discordapp.com/api/webhooks/1461009453410291826/deimejV9KMK2QuAcYn33OlS_i_yZy0RUZfJifI7MBtWh6-5y349NLNkX3S3MQikSTTOg"; 
 const PASTA_SESSAO = 'auth_info_baileys'; // Nome da pasta da sessão
 
-// --- 🧹 LIMPEZA AUTOMÁTICA (A Correção) ---
-// Apaga a sessão antiga ao iniciar para evitar o Loop de Arquivo Corrompido
+// --- 🧹 LIMPEZA AUTOMÁTICA (A CORREÇÃO DO LOOP) ---
+// Isso apaga a sessão velha/corrompida toda vez que o bot reinicia
 try {
     if (fs.existsSync(PASTA_SESSAO)) {
         fs.rmSync(PASTA_SESSAO, { recursive: true, force: true });
@@ -24,7 +24,7 @@ try {
 }
 
 // --- VARIÁVEIS GLOBAIS ---
-let qrCodeDataURL = '';
+let qrCodeDataURL = ''; 
 let statusBot = 'Iniciando e Limpando...';
 let logsRecentes = [];
 
@@ -80,7 +80,7 @@ server.listen(PORT, () => addLog(`Painel Web rodando na porta ${PORT}`));
 const userStages = {}; 
 
 async function connectToWhatsApp() {
-    // Usa a constante PASTA_SESSAO
+    // Usa a constante PASTA_SESSAO para garantir que estamos usando o mesmo nome
     const { state, saveCreds } = await useMultiFileAuthState(PASTA_SESSAO);
 
     const sock = makeWASocket({
@@ -88,7 +88,7 @@ async function connectToWhatsApp() {
         printQRInTerminal: true,
         logger: pino({ level: 'silent' }),
         browser: ["Guimaraes Bot", "Chrome", "1.0.0"],
-        connectTimeoutMs: 60000, // Tempo maior para evitar timeout
+        connectTimeoutMs: 60000, 
     });
 
     sock.ev.on('connection.update', async (update) => {
@@ -110,11 +110,11 @@ async function connectToWhatsApp() {
             
             if (shouldReconnect) {
                 statusBot = 'Reconectando em 5s...';
-                // Espera 5 segundos para não travar o servidor com reconexões rápidas
+                // 👇 AQUI ESTÁ O FREIO: Espera 5 segundos antes de tentar de novo
                 setTimeout(connectToWhatsApp, 5000);
             } else {
                 statusBot = 'Desconectado (Sessão Encerrada)';
-                addLog('Você desconectou pelo celular. O bot vai limpar a sessão no próximo reinício.');
+                addLog('Sessão encerrada manualmente. Bot vai limpar tudo no próximo reinício.');
             }
         } else if (connection === 'open') {
             statusBot = '✅ Conectado e Online!';
