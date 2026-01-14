@@ -1,22 +1,20 @@
-# Usa o Alpine (Leve)
-FROM node:20-alpine
+# Volta para o sistema padrão (mais compatível e não precisa compilar tudo)
+FROM node:20-slim
 
 # Define a pasta
 WORKDIR /usr/src/app
 
-# Copia a receita do bolo
+# Copia apenas o arquivo de receitas
 COPY package.json ./
 
-# 👇 A SOLUÇÃO:
-# 1. Instala ferramentas de construção (Python, Make, G++)
-# 2. Instala o Bot
-# 3. Remove as ferramentas para não ocupar espaço
-RUN apk add --no-cache python3 make g++ && \
-    npm install --production --no-audit && \
-    apk del python3 make g++
+# 👇 O SEGREDO:
+# --omit=dev: Não baixa ferramentas de desenvolvimento
+# --no-optional: Pula dependências opcionais pesadas que travam a memória
+# --no-audit: Não perde tempo verificando segurança agora
+RUN npm install --omit=dev --no-optional --no-audit
 
-# Copia o código do bot (o .dockerignore vai filtrar o lixo)
+# Copia o resto do código (filtrado pelo .dockerignore)
 COPY . .
 
-# Inicia
+# Inicia o bot
 CMD ["node", "index.js"]
