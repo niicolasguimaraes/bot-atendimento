@@ -11,21 +11,16 @@ const HORARIO_ABERTURA = 7;
 const HORARIO_FECHAMENTO = 17;
 const WEBHOOK_URL = "https://discordapp.com/api/webhooks/1461009453410291826/deimejV9KMK2QuAcYn33OlS_i_yZy0RUZfJifI7MBtWh6-5y349NLNkX3S3MQikSTTOg"; 
 
-// --- 🎲 SESSÃO DESCARTÁVEL (Solução Anti-Zumbi) ---
-// Cria um nome aleatório tipo 'sessao_8371'. 
-// Isso obriga o bot a criar uma conta nova e ignora a velha corrompida.
-const PASTA_SESSAO = 'sessao_nova_' + Math.floor(Math.random() * 10000);
-
 // --- VARIÁVEIS GLOBAIS ---
+let pastaSessaoAtual = 'sessao_inicial'; // Começa com um nome padrão
 let qrCodeDataURL = ''; 
-let statusBot = 'Iniciando Sessão Nova...';
+let statusBot = 'Iniciando...';
 let logsRecentes = [];
 
-// Função de Logs
 function addLog(texto) {
     const hora = new Date().toLocaleTimeString('pt-BR');
     logsRecentes.push(`[${hora}] ${texto}`);
-    if (logsRecentes.length > 7) logsRecentes.shift(); 
+    if (logsRecentes.length > 10) logsRecentes.shift(); 
     console.log(texto);
     if(texto.includes('Erro') || texto.includes('Conectado')) sendToDiscord('INFO', 'Log Sistema', texto);
 }
@@ -40,8 +35,8 @@ const server = http.createServer((req, res) => {
         conteudoPrincipal = `<h2 style="color:#00ff88">✅ ${statusBot}</h2><p>Bot Online! 🚀<br>Use <b>#bot</b> no WhatsApp para testar.</p>`;
     } else {
         conteudoPrincipal = `
-            ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" style="border: 5px solid white; border-radius: 10px; width: 250px;" />` : '<div style="padding:30px; border:2px dashed #555; color: #aaa;">⏳ Gerando QR Code...<br>(Aguarde uns segundos)</div>'}
-            <p style="color: #ffcc00; font-size: 13px; margin-top: 15px;">⚠️ ATENÇÃO: Se travar no celular, NÃO FECHE. Deixe rodar por 2 minutos.</p>
+            ${qrCodeDataURL ? `<img src="${qrCodeDataURL}" style="border: 5px solid white; border-radius: 10px; width: 250px;" />` : '<div style="padding:30px; border:2px dashed #555; color: #aaa;">⏳ Gerando QR Code...<br>(Se demorar, aguarde o reinício automático)</div>'}
+            <p style="color: #ffcc00; font-size: 13px; margin-top: 15px;">Tentativa atual: ${pastaSessaoAtual}</p>
         `;
     }
 
@@ -59,7 +54,6 @@ const server = http.createServer((req, res) => {
             <h1>🤖 ${NOME_EMPRESA}</h1>
             <div class="box">
                 <p>Status: <span style="font-weight:bold; color:#00d2ff">${statusBot}</span></p>
-                <p style="font-size:10px; color:gray">Sessão Atual: ${PASTA_SESSAO}</p>
                 ${conteudoPrincipal}
                 <div class="logs"><b>Terminal:</b><br>${logsHtml}</div>
             </div>
@@ -74,14 +68,21 @@ server.listen(PORT, () => addLog(`Painel Web rodando na porta ${PORT}`));
 const userStages = {}; 
 
 async function connectToWhatsApp() {
-    addLog(`Criando sessão na pasta: ${PASTA_SESSAO}`);
-    const { state, saveCreds } = await useMultiFileAuthState(PASTA_SESSAO);
+    // 👇 A MÁGICA: Gera um nome novo TODA VEZ que tenta conectar
+    // Se a conexão falhar, na próxima tentativa ele cria uma pasta limpa do zero.
+    const novaSessao = 'sessao_' + Math.floor(Math.random() * 100000);
+    pastaSessaoAtual = novaSessao;
+    
+    addLog(`🔄 Iniciando nova tentativa de conexão na pasta: ${pastaSessaoAtual}`);
+    
+    const { state, saveCreds } = await useMultiFileAuthState(pastaSessaoAtual);
 
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: true,
         logger: pino({ level: 'silent' }),
-        browser: ["Guimaraes Bot", "Chrome", "1.0.0"],
+        // 👇 Mudei para Ubuntu/Chrome para parecer mais "confiável" pro WhatsApp
+        browser: ["Ubuntu", "Chrome", "20.0.04"], 
         connectTimeoutMs: 60000, 
     });
 
@@ -100,19 +101,23 @@ async function connectToWhatsApp() {
             const erroCodigo = (lastDisconnect.error)?.output?.statusCode;
             const shouldReconnect = erroCodigo !== DisconnectReason.loggedOut;
             
-            addLog(`Conexão fechada (Erro: ${erroCodigo}). Reconectando? ${shouldReconnect}`);
+            addLog(`Conexão fechada (Erro: ${erroCodigo}). Tentando nova sessão...`);
             
+            // 👇 LIMPEZA: Apaga a pasta que deu erro para não encher o disco
+            try { fs.rmSync(pastaSessaoAtual, { recursive: true, force: true }); } catch(e){}
+
             if (shouldReconnect) {
-                statusBot = 'Reconectando em 5s...';
-                setTimeout(connectToWhatsApp, 5000);
+                statusBot = 'Trocando Sessão...';
+                // Espera 3 segundos e tenta de novo com UMA NOVA PASTA
+                setTimeout(connectToWhatsApp, 3000);
             } else {
-                statusBot = 'Desconectado (Sessão Encerrada)';
-                addLog('Sessão encerrada manualmente.');
+                statusBot = 'Desconectado permanentemente.';
+                addLog('Fim da linha.');
             }
         } else if (connection === 'open') {
             statusBot = '✅ Conectado e Online!';
             qrCodeDataURL = ''; 
-            addLog('Conexão aberta com sucesso!');
+            addLog('SUCESSO! Bot conectado.');
         }
     });
 
@@ -121,100 +126,45 @@ async function connectToWhatsApp() {
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const msg = messages[0];
         if (!msg.message) return;
-
         const isGroup = msg.key.remoteJid.endsWith('@g.us');
-        const isStatus = msg.key.remoteJid === 'status@broadcast';
-        if (isGroup || isStatus) return;
+        if (isGroup) return;
 
         const userId = msg.key.remoteJid;
-        const textoRecebido = (msg.message.conversation || msg.message.extendedTextMessage?.text || '').trim();
-        const textoLower = textoRecebido.toLowerCase();
+        const texto = (msg.message.conversation || msg.message.extendedTextMessage?.text || '').trim();
+        const textoLower = texto.toLowerCase();
 
-        if (msg.key.fromMe) {
-            if (textoLower === '#bot') {
-                addLog(`Comando #bot ativado para ${userId}`);
-                await enviarMenu(sock, userId, "Cliente (Manual)");
-            }
-            return; 
+        if (msg.key.fromMe && textoLower === '#bot') {
+            addLog(`Comando #bot para ${userId}`);
+            await enviarMenu(sock, userId, "Cliente");
+            return;
         }
+        if (msg.key.fromMe) return;
 
-        addLog(`Msg de ${userId}: ${textoRecebido}`);
+        addLog(`Msg de ${userId}: ${texto}`);
         
         const estagio = userStages[userId] || 'INICIO';
 
         if (estagio === 'INICIO') {
-            const hora = new Date().getHours();
-            if (hora < HORARIO_ABERTURA || hora >= HORARIO_FECHAMENTO) {
-                await sock.sendMessage(userId, { text: `🌙 *Olá!* Estamos fora do horário de atendimento (07h às 17h).\nSe for urgente, use o menu abaixo.` });
-            }
             await enviarMenu(sock, userId, msg.pushName || 'Cliente');
             userStages[userId] = 'MENU';
         } 
         else if (estagio === 'MENU') {
-            if (textoLower === '1' || textoLower.includes('vendedor')) {
-                await sock.sendMessage(userId, { text: `*👨‍💼 Falar com Vendedor*\n\n1. Atendimento Rápido (Fila)\n2. Escolher Vendedor da Lista\n\n_Digite o número:_` });
-                userStages[userId] = 'VENDEDOR';
-            } 
-            else if (textoLower === '2' || textoLower.includes('financeiro')) {
-                await sock.sendMessage(userId, { text: `*💰 Financeiro*\n\n1. Dados do PIX\n2. 2ª Via de Boleto\n3. Falar com Humano\n\n_Digite o número:_` });
-                userStages[userId] = 'FINANCEIRO';
-            } 
-            else if (textoLower === '3' || textoLower.includes('duvida')) {
-                await sock.sendMessage(userId, { text: `🤖 *IA:* Pode perguntar! (Ex: "Qual o endereço?", "Horário de funcionamento?")\n\nDigite *sair* para voltar.` });
-                userStages[userId] = 'IA';
-            } else {
-                await sock.sendMessage(userId, { text: '❌ Opção inválida. Digite 1, 2 ou 3.' });
-            }
+            if (texto === '1') { await sock.sendMessage(userId, { text: '✅ Vendedor solicitado!' }); userStages[userId] = 'FIM'; }
+            else if (texto === '2') { await sock.sendMessage(userId, { text: '💰 Pix: 51.175.474/0001-05' }); userStages[userId] = 'FIM'; }
+            else if (texto === '3') { await sock.sendMessage(userId, { text: '📍 Endereço: R. Neuza Fransisca, 610' }); userStages[userId] = 'FIM'; }
+            else { await sock.sendMessage(userId, { text: 'Opção inválida. Digite 1, 2 ou 3.' }); }
         }
-        else if (estagio === 'VENDEDOR') {
-            if (textoLower === '1') {
-                await sock.sendMessage(userId, { text: `✅ *Urgência Solicitada!*\nNossa equipe foi notificada e já vai te chamar.` });
-                sendToDiscord('ENVIADO', '🚨 Urgência', userId);
-                userStages[userId] = 'FIM';
-            } else {
-                await sock.sendMessage(userId, { text: `*Nossa Equipe:*\n\n👤 Nicolas Guimarães\n👤 Gustavo Rocha\n👤 Isaque Panullo\n\n_Aguarde um momento, vou transferir._` });
-                userStages[userId] = 'FIM';
-            }
-        }
-        else if (estagio === 'FINANCEIRO') {
-            if (textoLower === '1') {
-                await sock.sendMessage(userId, { text: `🏦 *Nubank*\n🔑 PIX (CNPJ): 51.175.474/0001-05` });
-            } else {
-                await sock.sendMessage(userId, { text: `Ok! O financeiro já vai analisar sua solicitação.` });
-            }
-            userStages[userId] = 'FIM';
-        }
-        else if (estagio === 'IA') {
-            if (textoLower === 'sair') {
-                userStages[userId] = 'INICIO';
-                await sock.sendMessage(userId, { text: '🔄 Reiniciando...' });
-                return;
-            }
-            let resposta = 'Vou chamar um humano para responder isso.';
-            if (textoLower.includes('onde') || textoLower.includes('endereço')) resposta = '📍 R. Neuza Fransisca dos Santos, 610 - Sumaré - SP';
-            if (textoLower.includes('hora')) resposta = '🕒 Seg a Sex, das 07h às 17h';
-            
-            await sock.sendMessage(userId, { text: resposta });
-            if (!textoLower.includes('onde') && !textoLower.includes('hora')) userStages[userId] = 'FIM';
-        }
-
     });
 }
 
 async function enviarMenu(sock, jid, nome) {
-    const textoMenu = `👋 Olá, *${nome}*! Bem-vindo à ${NOME_EMPRESA}.\n\nDigite o número da opção:\n\n1️⃣ *Falar com Vendedor* (Orçamento)\n2️⃣ *Financeiro* (PIX/Boletos)\n3️⃣ *Tirar Dúvida* (Endereço/Horário)`;
-    await sock.sendMessage(jid, { text: textoMenu });
+    const texto = `👋 Olá, *${nome}*! Bem-vindo à ${NOME_EMPRESA}.\n\n1️⃣ Vendedor\n2️⃣ Financeiro\n3️⃣ Endereço`;
+    await sock.sendMessage(jid, { text: texto });
 }
 
 async function sendToDiscord(tipo, titulo, detalhe) {
     if (!WEBHOOK_URL.startsWith('http')) return;
-    try {
-        await fetch(WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ embeds: [{ title: `${tipo} - ${titulo}`, description: detalhe, color: 5763719 }] })
-        });
-    } catch (e) {}
+    try { await fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ embeds: [{ title: `${tipo} - ${titulo}`, description: detalhe, color: 5763719 }] }) }); } catch (e) {}
 }
 
 connectToWhatsApp();
