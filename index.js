@@ -85,9 +85,9 @@ const LISTA_VENDEDORES = [
     { title: 'Isaque Panullo', description: 'Atendimento Geral' }
 ];
 
-const CHAVE_PIX = "00.000.000/0001-00 (CNPJ)"; 
-const BANCO_NOME = "Banco Inter";
-const ENDERECO = "Av. Principal, 100 - Centro";
+const CHAVE_PIX = "51.175.474/0001-05 (CNPJ)"; 
+const BANCO_NOME = "Nubank";
+const ENDERECO = "R. Neuza Fransisca dos Santos, 610 - Sumaré - SP";
 const HORARIO_TEXTO = "Segunda a Sexta das 07h às 17h";
 
 // --- INICIANDO O WPPCONNECT (CONFIGURAÇÃO BLINDADA) ---
@@ -156,13 +156,13 @@ function start(client) {
         try {
             await client.sendListMessage(userId, {
                 buttonText: 'ABRIR MENU',
-                description: `Bem-vindo à ${NOME_EMPRESA}.`,
-                title: NOME_EMPRESA,
+                description: `Bem-vindo à ${NOME_EMPRESA}. Como posso te ajudar?`,
+                title: 'Guimarães Sign',
                 sections: [
                     {
                         title: 'Selecione uma opção:',
                         rows: [
-                            { rowId: '1', title: 'Falar com Vendedor', description: 'Deixar recado / Orçamento' },
+                            { rowId: '1', title: 'Falar com Vendedor', description: 'Fazer Orçamento' },
                             { rowId: '2', title: 'Financeiro', description: 'Boletos, PIX e Faturas' },
                             { rowId: '3', title: 'Tirar Dúvida', description: 'Localização e Horários' },
                         ]
@@ -187,7 +187,7 @@ function start(client) {
             await client.sendListMessage(userId, {
                 buttonText: 'SELECIONAR VENDEDOR',
                 description: 'Preferência de atendimento:',
-                title: 'Equipe de Vendas',
+                title: 'Guimarães Sign',
                 sections: [{ title: 'Opções:', rows: [{ rowId: 'fila', title: 'Primeiro da Fila', description: 'Rápido' }, { rowId: 'escolher', title: 'Escolher Vendedor', description: 'Lista' }] }]
             });
             logSystem('ENVIADO', 'Menu Vendedores', userId);
@@ -197,7 +197,7 @@ function start(client) {
             await client.sendListMessage(userId, {
                 buttonText: 'OPÇÕES FINANCEIRAS',
                 description: 'Serviços financeiros:',
-                title: 'Financeiro',
+                title: 'Guimarães Sign',
                 sections: [{ title: 'Selecione:', rows: [{ rowId: 'fin_pix', title: 'Dados para Pagamento', description: 'PIX' }, { rowId: 'fin_boleto', title: '2ª Via de Boleto', description: 'Solicitar via' }, { rowId: 'fin_humano', title: 'Falar com Atendente', description: 'Outros' }] }]
             });
             logSystem('ENVIADO', 'Menu Financeiro', userId);
@@ -235,7 +235,7 @@ function start(client) {
         if (nomeEscolhido) {
             await client.sendText(userId, 
                 `*${nomeEscolhido.toUpperCase()}*\n__________________________\n\n` +
-                `👋 Olá! Vi que quer falar comigo. Já recebi sua notificação!`
+                `👋 Olá! Já recebi sua notificação e em instantes vou realizar seu atendimento.`
             );
             logSystem('ENVIADO', 'Transbordo Direto', `Para: ${nomeEscolhido}`);
             userStages[userId] = 'FINALIZADO';
