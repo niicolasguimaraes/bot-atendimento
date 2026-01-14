@@ -2,16 +2,6 @@ const fs = require('fs');
 const http = require('http');
 const wppconnect = require('@wppconnect-team/wppconnect');
 
-// --- 🧹 FAXINA DE SESSÃO ---
-try {
-    if (fs.existsSync('./tokens')) {
-        fs.rmSync('./tokens', { recursive: true, force: true });
-        console.log('[SISTEMA] Pasta de tokens limpa para novo login.');
-    }
-} catch (e) {
-    console.log('[INFO] Limpeza de pasta ignorada.');
-}
-
 // --- ⚙️ CONFIGURAÇÕES ---
 const PORT = process.env.PORT || 8080; 
 const NOME_EMPRESA = "Guimarães Sign";
@@ -19,35 +9,35 @@ const HORARIO_ABERTURA = 7;
 const HORARIO_FECHAMENTO = 17; 
 const WEBHOOK_URL = "https://discordapp.com/api/webhooks/1461009453410291826/deimejV9KMK2QuAcYn33OlS_i_yZy0RUZfJifI7MBtWh6-5y349NLNkX3S3MQikSTTOg"; 
 
-// --- VARIÁVEL GLOBAL PARA O QR CODE ---
-let qrCodeImagem = ''; // Vai guardar a imagem do QR Code
+// --- VARIÁVEIS GLOBAIS ---
+let qrCodeImagem = ''; 
 let statusBot = 'Iniciando...';
 
-// --- 🌐 SERVIDOR WEB (MOSTRA O QR CODE NA TELA) ---
+// --- 🌐 SERVIDOR WEB ---
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    
     let html = `
     <html>
         <head>
-            <meta http-equiv="refresh" content="5"> <style>
+            <meta http-equiv="refresh" content="5">
+            <style>
                 body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f0f2f5; }
-                h1 { color: #333; }
                 .box { background: white; padding: 20px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
                 img { width: 300px; height: 300px; border: 1px solid #ddd; }
                 .status { margin-top: 20px; font-weight: bold; color: #007bff; }
+                .aviso { color: #d9534f; font-size: 14px; margin-top: 15px; font-weight: bold;}
             </style>
         </head>
         <body>
             <div class="box">
                 <h1>🤖 ${NOME_EMPRESA}</h1>
                 <p>Status: <span class="status">${statusBot}</span></p>
-                ${qrCodeImagem ? `<img src="${qrCodeImagem}" /> <p>Aponte a câmera do WhatsApp agora!</p>` : '<p>Aguardando geração do código...</p>'}
+                ${qrCodeImagem ? `<img src="${qrCodeImagem}" />` : '<p>Carregando...</p>'}
+                <p class="aviso">⚠️ IMPORTANTE: Se o celular travar em "Conectando", NÃO FECHE O WHATSAPP.<br>Aguarde até 2 minutos para ele sincronizar.</p>
             </div>
         </body>
     </html>
     `;
-    
     res.end(html);
 });
 
@@ -55,7 +45,7 @@ server.listen(PORT, () => {
     console.log(`[SERVIDOR] Painel Web rodando na porta ${PORT}.`);
 });
 
-// --- 🎨 LOGS E DISCORD ---
+// --- 🎨 LOGS ---
 const C = { reset: "\x1b[0m", green: "\x1b[32m", yellow: "\x1b[33m", cyan: "\x1b[36m", red: "\x1b[31m", gray: "\x1b[90m" };
 const DiscordColors = { ONLINE: 5763719, RECEBIDO: 3447003, ENVIADO: 16776960, ERRO: 15548997, INFO: 9807270 };
 
@@ -63,17 +53,13 @@ async function sendToDiscord(tipo, titulo, detalhe) {
     if (!WEBHOOK_URL || WEBHOOK_URL.includes("SUA_URL")) return;
     const cor = DiscordColors[tipo] || DiscordColors.INFO;
     const hora = new Date().toLocaleTimeString('pt-BR');
-    const payload = { embeds: [{ title: `${iconePorTipo(tipo)} ${titulo}`, description: detalhe ? `\`\`\`${detalhe}\`\`\`` : undefined, color: cor, footer: { text: `Horário: ${hora} • Bot Guimarães Sign` } }] };
-    try { await fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); } catch (err) { console.log(`${C.red}[ERRO DISCORD]${C.reset} ${err.message}`); }
+    const payload = { embeds: [{ title: `${iconePorTipo(tipo)} ${titulo}`, description: detalhe ? `\`\`\`${detalhe}\`\`\`` : undefined, color: cor, footer: { text: `Horário: ${hora}` } }] };
+    try { await fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); } catch (err) { }
 }
-
 function iconePorTipo(tipo) { if (tipo === 'ONLINE') return '🟢'; if (tipo === 'RECEBIDO') return '📩'; if (tipo === 'ENVIADO') return '🤖'; if (tipo === 'ERRO') return '❌'; return '⚠️'; }
-
 function logSystem(tipo, titulo, detalhe = '') {
     const hora = new Date().toLocaleTimeString('pt-BR');
-    let cor = C.reset;
-    if (tipo === 'ONLINE') cor = C.green; if (tipo === 'RECEBIDO') cor = C.cyan; if (tipo === 'ENVIADO') cor = C.yellow; if (tipo === 'ERRO') cor = C.red; if (tipo === 'INFO') cor = C.gray;
-    console.log(`${C.gray}[${hora}]${C.reset} ${iconePorTipo(tipo)} ${cor}${titulo}${C.reset} ${detalhe ? '| ' + detalhe : ''}`);
+    console.log(`${C.gray}[${hora}]${C.reset} ${iconePorTipo(tipo)} ${C.green}${titulo}${C.reset} ${detalhe ? '| ' + detalhe : ''}`);
     sendToDiscord(tipo, titulo, detalhe);
 }
 
@@ -90,19 +76,33 @@ const BANCO_NOME = "Nubank";
 const ENDERECO = "R. Neuza Fransisca dos Santos, 610 - Sumaré - SP";
 const HORARIO_TEXTO = "Segunda a Sexta das 07h às 17h";
 
-// --- INICIANDO O BOT ---
+// --- INICIANDO O BOT (MODO DIETA EXTREMA) ---
 wppconnect.create({
     session: 'meu-bot-visual',
     headless: true,
-    logQR: false, // Desliga log no terminal
+    logQR: false,
+    disableWelcome: true, 
+    updatesLog: false,
+    autoClose: 0,
+    // 👇 O SEGREDO DO SUCESSO NO PLANO GRÁTIS 👇
+    blockAssets: true, // Bloqueia imagens/css do zap para economizar RAM
     catchQR: (base64Qr, asciiQR) => {
-        // 👇 ATUALIZA A VARIÁVEL DO SITE
         qrCodeImagem = base64Qr;
         statusBot = 'Aguardando Leitura do QR Code...';
-        console.log('>> QR Code novo gerado! Abra o link do Render para escanear. <<');
+        console.log('>> QR Code novo gerado! <<');
     },
-    autoClose: 0,
-    browserArgs: ['--disable-web-security', '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu'],
+    browserArgs: [
+        '--disable-web-security',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process', 
+        '--disable-gpu',
+        '--disable-extensions' // Extra para economizar
+    ],
 })
 .then((client) => start(client))
 .catch((error) => {
@@ -111,8 +111,8 @@ wppconnect.create({
 });
 
 function start(client) {
-    statusBot = '✅ Conectado e Online!';
-    qrCodeImagem = ''; // Limpa o QR Code do site
+    statusBot = '✅ Conectado! (Pode fechar o site)';
+    qrCodeImagem = ''; 
     logSystem('ONLINE', 'Sistema Iniciado', `Aguardando conexão...`);
     
     client.onStateChange((state) => {
@@ -136,7 +136,7 @@ function start(client) {
         const conteudo = tipoMsg === 'chat' ? message.body : `[Mídia: ${tipoMsg}]`;
         logSystem('RECEBIDO', `De: ${nomeCliente}`, conteudo);
 
-        // --- LÓGICA DE MENUS (SEU CÓDIGO ORIGINAL) ---
+        // --- SEUS MENUS ---
         if (userStage === 'INICIO') {
             const agora = new Date();
             const horaAtual = agora.getHours(); 
