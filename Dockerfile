@@ -1,16 +1,18 @@
-FROM node:20-slim
+# Usa o sistema Alpine (Super leve, sobra memória pro instalador)
+FROM node:20-alpine
 
-# Define a pasta de trabalho
+# Cria a pasta
 WORKDIR /usr/src/app
 
-# Copia apenas o package.json (ignora o lock antigo do npm)
+# Copia o arquivo de receitas
 COPY package.json ./
 
-# 👇 A MÁGICA: Usamos YARN em vez de NPM
-# O Yarn é mais estável e cria seu próprio arquivo de trava limpo
-RUN yarn install --production
+# 👇 A SOLUÇÃO DO ERRO:
+# Instalação limpa, sem auditoria, sem fundos, apenas produção.
+# Isso gasta o mínimo de memória possível.
+RUN npm install --only=production --no-audit --no-fund
 
-# Copia o restante dos arquivos do bot
+# Copia o resto do bot
 COPY . .
 
 # Inicia o bot
