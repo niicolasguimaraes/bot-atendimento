@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@wppconnect-team/wppconnect": "^1.37.9"
+    "@wppconnect-team/wppconnect": "^1.37.9",
+    "qrcode-terminal": "^0.12.0"
   }
 }

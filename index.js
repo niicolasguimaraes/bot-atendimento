@@ -1,8 +1,9 @@
-const wppconnect = require('@wppconnect-team/wppconnect');
-const http = require('http'); // Servidor para enganar o Render
 const fs = require('fs');
+const http = require('http');
+const qrcode = require('qrcode-terminal'); // 👇 Importação do QR Code novo
+const wppconnect = require('@wppconnect-team/wppconnect');
 
-// --- 🧹 FAXINA DE SESSÃO (CORRIGIDO: Fica aqui no topo) ---
+// --- 🧹 FAXINA DE SESSÃO (Evita erros de login antigo) ---
 try {
     if (fs.existsSync('./tokens')) {
         fs.rmSync('./tokens', { recursive: true, force: true });
@@ -17,7 +18,7 @@ const PORT = process.env.PORT || 8080;
 const NOME_EMPRESA = "Guimarães Sign";
 const HORARIO_ABERTURA = 7; 
 const HORARIO_FECHAMENTO = 17; 
-// 👇 SUA URL DO DISCORD ESTÁ AQUI
+// 👇 SUA URL DO DISCORD
 const WEBHOOK_URL = "https://discordapp.com/api/webhooks/1461009453410291826/deimejV9KMK2QuAcYn33OlS_i_yZy0RUZfJifI7MBtWh6-5y349NLNkX3S3MQikSTTOg"; 
 
 // --- 🚑 SERVIDOR FALSO (MANTÉM O RENDER ACORDADO) ---
@@ -102,16 +103,17 @@ const BANCO_NOME = "Nubank";
 const ENDERECO = "R. Neuza Fransisca dos Santos, 610 - Sumaré - SP";
 const HORARIO_TEXTO = "Segunda a Sexta das 07h às 17h";
 
-// --- INICIANDO O WPPCONNECT (CONFIGURAÇÃO BLINDADA) ---
+// --- INICIANDO O WPPCONNECT (CONFIGURAÇÃO BLINDADA + QR CODE PEQUENO) ---
 wppconnect
   .create({
     session: 'meu-bot-visual',
     headless: true,
-    logQR: false, // <--- DESLIGAMOS O QR CODE QUEBRADO (Modo Texto)
+    logQR: false, // Desliga o log nativo que quebra
     catchQR: (base64Qr, asciiQR) => {
-        console.log('\n👇 COPIE O TEXTO GIGANTE ABAIXO E COLE EM: https://base64-image.de/ 👇\n');
-        console.log(base64Qr);
-        console.log('\n👆 FIM DO CÓDIGO 👆\n');
+        console.log('\n✅ QR CODE GERADO (Escaneie direto na tela): \n');
+        // 👇 Gera o QR Code pequeno no terminal
+        qrcode.generate(asciiQR, { small: true }); 
+        console.log('\n=================================================\n');
     },
     autoClose: 0,
     browserArgs: [
