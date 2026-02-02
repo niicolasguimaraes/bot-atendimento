@@ -6,7 +6,8 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@wppconnect-team/wppconnect": "^1.37.9"
+    "@wppconnect-team/wppconnect": "^1.37.9",
+    "express": "^5.2.1"
   },
   "engines": {
     "node": "18.x"
